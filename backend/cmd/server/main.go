@@ -13,6 +13,7 @@ import (
 
 	"github.com/lp/campus-market/internal/config"
 	"github.com/lp/campus-market/internal/model"
+	"github.com/lp/campus-market/internal/repository"
 	"github.com/lp/campus-market/internal/router"
 	"github.com/lp/campus-market/internal/util"
 	"gorm.io/driver/mysql"
@@ -25,7 +26,8 @@ func main() {
 	cfg := config.Load()
 
 	db, err := gorm.Open(mysql.Open(cfg.DSN), &gorm.Config{
-		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
+		Logger:         gormlogger.Default.LogMode(gormlogger.Silent),
+		TranslateError: true,
 	})
 	if err != nil {
 		logger.Error("db connect failed", slog.String("error", err.Error()))
@@ -40,9 +42,14 @@ func main() {
 
 	if err := db.AutoMigrate(
 		&model.User{}, &model.Product{}, &model.Conversation{}, &model.Message{},
-		&model.TradeOrder{}, &model.Review{}, &model.BookExchange{},
+		&model.TradeOrder{}, &model.MeetupAppointment{}, &model.Review{}, &model.BookExchange{},
 	); err != nil {
 		logger.Error("auto migrate failed", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+
+	if err := repository.EnsureMeetupConstraints(db); err != nil {
+		logger.Error("meetup constraints migration failed", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
 

@@ -69,6 +69,30 @@ CREATE TABLE IF NOT EXISTS trade_orders (
   INDEX idx_trade_orders_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS meetup_appointments (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  order_id BIGINT UNSIGNED NOT NULL,
+  proposer_id BIGINT UNSIGNED NOT NULL,
+  counterpart_id BIGINT UNSIGNED NOT NULL,
+  meet_at DATETIME(3) NOT NULL,
+  location VARCHAR(128) NOT NULL,
+  status VARCHAR(16) NOT NULL DEFAULT 'pending',
+  buyer_confirmed_at DATETIME(3) NULL,
+  seller_confirmed_at DATETIME(3) NULL,
+  responded_at DATETIME(3) NULL,
+  -- 仅当预约处于进行中(pending/accepted)时取值 order_id，否则为 NULL；
+  -- 配合唯一索引保证同一订单最多一份有效预约（并发安全）。
+  active_order_key BIGINT UNSIGNED GENERATED ALWAYS AS (
+    CASE WHEN status IN ('pending','accepted') THEN order_id ELSE NULL END
+  ) STORED,
+  created_at DATETIME(3) DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_meetup_active_order (active_order_key),
+  INDEX idx_meetup_appointments_order (order_id),
+  INDEX idx_meetup_appointments_proposer (proposer_id),
+  INDEX idx_meetup_appointments_counterpart (counterpart_id),
+  INDEX idx_meetup_appointments_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS reviews (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   trade_id BIGINT UNSIGNED NOT NULL,

@@ -20,4 +20,13 @@ const (
 	MsgExchangeClosed      = "该交换已关闭"
 	MsgNoMatch             = "暂未找到匹配的书籍交换"
 	MsgReportTarget        = "举报对象无效"
+	MsgOrderNotActive      = "订单已完成或已取消，无法发起面交预约"
+	MsgAppointmentTimePast = "面交时间必须晚于当前时间"
+	MsgLocationRequired    = "面交地点不能为空"
+	MsgAppointmentExists   = "该订单已存在进行中的面交预约"
+	MsgAppointmentInvalid  = "当前预约状态不可操作"
+	MsgNotCounterpart      = "仅预约的另一方可执行该操作"
+	MsgHandoverNotAccepted = "预约未被接受，无法确认交接"
+	MsgHandoverConfirmed   = "您已确认过交接"
+	MsgConfirmViaHandover  = "存在进行中的面交预约，请通过预约的交接确认完成订单"
 )

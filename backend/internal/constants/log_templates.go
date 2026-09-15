@@ -32,7 +32,17 @@ const (
 	LogRateLimitReached            = "rate limit reached: ip=%s route=%s"
 	LogSeedingCompleted            = "database seeding completed: users=%d products=%d"
 	LogReportHandleSuccess         = "report handled: report_id=%d action=%s"
+	LogAppointmentCreateSuccess    = "meetup appointment create success: appointment_id=%d order_id=%d proposer=%d"
+	LogAppointmentCreateRejected   = "meetup appointment create rejected: order_id=%d proposer=%d reason=%s"
+	LogAppointmentAcceptSuccess    = "meetup appointment accept success: appointment_id=%d counterpart=%d"
+	LogAppointmentRejectSuccess    = "meetup appointment reject success: appointment_id=%d counterpart=%d"
+	LogAppointmentRescheduleSuccess = "meetup appointment reschedule success: old_id=%d new_id=%d counterpart=%d"
+	LogAppointmentHandoverSuccess  = "meetup appointment handover confirm success: appointment_id=%d user_id=%d role=%s"
+	LogAppointmentCompleteSuccess  = "meetup appointment complete success: appointment_id=%d order_id=%d product_id=%d"
+	LogAppointmentCompleteFailed   = "meetup appointment complete failed: appointment_id=%d error=%v"
+	LogTradeOrderConfirmBlocked    = "trade order confirm blocked by active appointment: order_id=%d user_id=%d"
+	LogAppointmentsVoidedByCancel  = "meetup appointments voided by order cancel: order_id=%d count=%d"
 )
 
 // LogTemplateCount guards the "at least 25 templates" requirement.
-const LogTemplateCount = 31
+const LogTemplateCount = 41

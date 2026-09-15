@@ -79,7 +79,7 @@ cy-354/
 │   └── internal/
 │       ├── config/          # 环境变量配置
 │       ├── constants/       # product.go, trade.go, user.go, error_codes.go, log_templates.go, messages.go
-│       ├── model/           # user, product, conversation, message, trade_order, review, book_exchange
+│       ├── model/           # user, product, conversation, message, trade_order, meetup_appointment, review, book_exchange
 │       ├── repository/      # GORM 仓库（按实体分文件）
 │       ├── service/         # 业务逻辑（按实体分文件）
 │       ├── handler/         # HTTP 处理器（按实体分文件）
@@ -91,7 +91,7 @@ cy-354/
     ├── Dockerfile
     ├── nginx.conf
     └── src/
-        ├── api/             # user, product, conversation, tradeOrder, review, bookExchange
+        ├── api/             # user, product, conversation, tradeOrder, appointment, review, bookExchange
         ├── stores/          # authStore, userStore, productStore, tradeStore
         ├── components/common/# ProductCard, ProductForm, MessageBubble, TradeStatusBadge, ExchangeCard
         ├── hooks/           # useAuth, useProducts, useConversations
@@ -140,6 +140,11 @@ cy-354/
   - `GET/POST /api/v1/products`、`GET/DELETE /api/v1/products/:id`、`GET /api/v1/products/graduation`
   - `POST /api/v1/conversations`、`GET /api/v1/conversations/me`、`GET/POST /api/v1/conversations/:id/messages`
   - `POST /api/v1/trade-orders`、`GET /api/v1/trade-orders/me`、`POST /api/v1/trade-orders/:id/buyer-confirm|seller-confirm|cancel`
+  - `POST /api/v1/trade-orders/:id/appointments`、`GET /api/v1/trade-orders/:id/appointments`、`POST /api/v1/appointments/:id/accept|reject|reschedule|handover-confirm`
+  - 同一订单最多一份有效（待响应/已接受）预约，由 `meetup_appointments.active_order_key` 生成列唯一索引在数据库层强制（并发安全）
+  - 存在有效预约时，`buyer-confirm`/`seller-confirm` 旧确认入口返回 409，订单只能经预约的双方交接确认完成
+  - 预约创建与旧确认完成在同一订单行锁（`SELECT ... FOR UPDATE`）下互斥：旧确认先提交则创建 409，预约先落库则旧确认 409，不会留下「订单已完成 + 预约进行中」的不一致状态
+  - 订单取消在同一事务内作废旧订单的全部有效预约（预约置 `cancelled`）；订单取消后创建、接受、交接预约均失败
   - `POST /api/v1/reviews`、`GET /api/v1/reviews/me`
   - `GET/POST /api/v1/book-exchanges`、`POST /api/v1/book-exchanges/:id/close`
   - `GET /api/v1/admin/stats`（管理员）
@@ -166,9 +171,15 @@ cy-354/
 | POST | `/api/v1/conversations/:id/messages` | 发送私信 | 登录 |
 | POST | `/api/v1/trade-orders` | 创建购买订单 | 登录 |
 | GET | `/api/v1/trade-orders/me` | 我的订单列表 | 登录 |
-| POST | `/api/v1/trade-orders/:id/buyer-confirm` | 买家确认 | 登录 |
-| POST | `/api/v1/trade-orders/:id/seller-confirm` | 卖家确认（订单完成+商品售出） | 登录 |
+| POST | `/api/v1/trade-orders/:id/buyer-confirm` | 买家确认（存在有效预约时被阻断） | 登录 |
+| POST | `/api/v1/trade-orders/:id/seller-confirm` | 卖家确认（存在有效预约时被阻断） | 登录 |
 | POST | `/api/v1/trade-orders/:id/cancel` | 取消订单 | 登录 |
+| POST | `/api/v1/trade-orders/:id/appointments` | 发起面交预约（未来时间+校内地点） | 登录 |
+| GET | `/api/v1/trade-orders/:id/appointments` | 订单的预约记录 | 登录 |
+| POST | `/api/v1/appointments/:id/accept` | 对方接受预约 | 登录 |
+| POST | `/api/v1/appointments/:id/reject` | 对方拒绝预约 | 登录 |
+| POST | `/api/v1/appointments/:id/reschedule` | 对方改约（新时间地点，旧预约作废） | 登录 |
+| POST | `/api/v1/appointments/:id/handover-confirm` | 买卖双方确认实物交接（双方确认后订单完成+商品售出） | 登录 |
 | POST | `/api/v1/reviews` | 交易后评价（含信誉积分） | 登录 |
 | GET | `/api/v1/reviews/me` | 我收到的评价 | 登录 |
 | GET | `/api/v1/book-exchanges` | 书籍交换列表 | 无 |
@@ -217,6 +228,25 @@ cy-354/
 - `backend/internal/util/formatters.go` `TradeStatusText()`
 - `backend/internal/constants/log_templates.go` 交易日志模板
 - `backend/internal/constants/error_codes.go` 状态冲突错误码
+
+### AppointmentStatus（pending/accepted/rejected/superseded/completed/cancelled）
+
+前端 `frontend/src/constants/trade.ts`：
+
+- `APPOINTMENT_STATUSES` 常量定义
+- `appointmentStatusLabel()` / `appointmentStatusType()` 映射
+- `src/pages/Orders.vue` 预约状态徽章与按钮显隐（接受/拒绝/改约/确认交接）
+
+后端 `backend/internal/constants/trade.go`：
+
+- `AppointmentStatusPending/Accepted/Rejected/Superseded/Completed/Cancelled` 常量
+- `AppointmentStatuses` 列表、`AppointmentActiveStatuses`（有效预约=待响应/已接受）
+- `IsAppointmentStatus()` / `IsAppointmentActive()` / `AppointmentStatusText()`
+- `backend/internal/model/meetup_appointment.go` Status 字段
+- `backend/internal/service/meetup_appointment_service.go` 预约状态机
+- `backend/internal/util/formatters.go` `AppointmentStatusText()`
+- `backend/internal/constants/log_templates.go` 预约日志模板
+- `backend/internal/constants/messages.go` 预约拒绝文案
 
 ### UserRole（student/admin）
 

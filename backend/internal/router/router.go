@@ -39,6 +39,7 @@ func New(cfg *config.Config, db *gorm.DB, logger *slog.Logger) *gin.Engine {
 	productRepo := repository.NewProductRepository(db)
 	convRepo := repository.NewConversationRepository(db)
 	orderRepo := repository.NewTradeOrderRepository(db)
+	appointmentRepo := repository.NewMeetupAppointmentRepository(db)
 	reviewRepo := repository.NewReviewRepository(db)
 	exchangeRepo := repository.NewBookExchangeRepository(db)
 
@@ -46,7 +47,8 @@ func New(cfg *config.Config, db *gorm.DB, logger *slog.Logger) *gin.Engine {
 	userSvc := service.NewUserService(userRepo, cfg.JWTSecret, cfg.JWTExpireHours, logger)
 	productSvc := service.NewProductService(productRepo, logger)
 	convSvc := service.NewConversationService(convRepo, logger)
-	orderSvc := service.NewTradeOrderService(orderRepo, productRepo, logger)
+	orderSvc := service.NewTradeOrderService(orderRepo, productRepo, appointmentRepo, logger)
+	appointmentSvc := service.NewMeetupAppointmentService(appointmentRepo, orderRepo, productRepo, logger)
 	reviewSvc := service.NewReviewService(reviewRepo, orderRepo, userRepo, logger)
 	exchangeSvc := service.NewBookExchangeService(exchangeRepo, logger)
 
@@ -55,6 +57,7 @@ func New(cfg *config.Config, db *gorm.DB, logger *slog.Logger) *gin.Engine {
 	productH := handler.NewProductHandler(productSvc, logger)
 	convH := handler.NewConversationHandler(convSvc, productSvc, userSvc, logger)
 	orderH := handler.NewTradeOrderHandler(orderSvc, userSvc, logger)
+	appointmentH := handler.NewMeetupAppointmentHandler(appointmentSvc, logger)
 	reviewH := handler.NewReviewHandler(reviewSvc, userSvc, logger)
 	exchangeH := handler.NewBookExchangeHandler(exchangeSvc, logger)
 
@@ -69,6 +72,7 @@ func New(cfg *config.Config, db *gorm.DB, logger *slog.Logger) *gin.Engine {
 		RegisterProductRoutes(v1, productH, auth, apiLimiter)
 		RegisterConversationRoutes(v1, convH, auth, apiLimiter)
 		RegisterTradeOrderRoutes(v1, orderH, auth, apiLimiter)
+		RegisterMeetupAppointmentRoutes(v1, appointmentH, auth, apiLimiter)
 		RegisterReviewRoutes(v1, reviewH, auth, apiLimiter)
 		RegisterBookExchangeRoutes(v1, exchangeH, auth, apiLimiter)
 		// admin-only report handling placeholder route group (kept for RBAC coverage)

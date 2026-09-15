@@ -6,6 +6,7 @@ import (
 	"github.com/lp/campus-market/internal/model"
 	"github.com/lp/campus-market/internal/util"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // TradeOrderRepository persists trade order rows.
@@ -32,6 +33,18 @@ func (r *TradeOrderRepository) Create(ctx context.Context, o *model.TradeOrder) 
 func (r *TradeOrderRepository) FindByID(ctx context.Context, id uint) (*model.TradeOrder, error) {
 	var o model.TradeOrder
 	err := db(ctx, r.db).First(&o, id).Error
+	if err != nil {
+		return nil, normalizeError(err)
+	}
+	return &o, nil
+}
+
+// FindByIDForUpdate returns a trade order by id while holding a row lock on it
+// (SELECT ... FOR UPDATE). It serializes mutually exclusive order transitions
+// (appointment creation vs. legacy completion) on the order row.
+func (r *TradeOrderRepository) FindByIDForUpdate(ctx context.Context, id uint) (*model.TradeOrder, error) {
+	var o model.TradeOrder
+	err := db(ctx, r.db).Clauses(clause.Locking{Strength: "UPDATE"}).First(&o, id).Error
 	if err != nil {
 		return nil, normalizeError(err)
 	}
@@ -65,14 +78,18 @@ func (r *TradeOrderRepository) ListByUser(ctx context.Context, userID uint, page
 	return items, total, nil
 }
 
-// UpdateStatus sets the order status.
-func (r *TradeOrderRepository) UpdateStatus(ctx context.Context, id uint, status string) error {
-	res := db(ctx, r.db).Model(&model.TradeOrder{}).Where("id = ?", id).Update("status", status)
+// CancelIfPending marks the order cancelled only while it is still pending.
+// The status precondition makes the update itself the guard: a competing
+// completion that committed first turns this into a no-row conflict.
+func (r *TradeOrderRepository) CancelIfPending(ctx context.Context, id uint) error {
+	res := db(ctx, r.db).Model(&model.TradeOrder{}).
+		Where("id = ? AND status = ?", id, "pending").
+		Update("status", "cancelled")
 	if res.Error != nil {
 		return res.Error
 	}
 	if res.RowsAffected == 0 {
-		return util.ErrNotFound
+		return util.ErrConflict
 	}
 	return nil
 }
@@ -94,6 +111,26 @@ func (r *TradeOrderRepository) UpdateBuyerConfirmed(ctx context.Context, id uint
 func (r *TradeOrderRepository) UpdateSellerConfirmed(ctx context.Context, id uint, ts interface{}) error {
 	res := db(ctx, r.db).Model(&model.TradeOrder{}).Where("id = ? AND status = ?", id, "confirmed").
 		Updates(map[string]interface{}{"seller_confirmed_at": ts, "completed_at": ts, "status": "completed"})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return util.ErrConflict
+	}
+	return nil
+}
+
+// CompleteByAppointment completes an active order via the meetup handover flow,
+// filling any missing party confirmation timestamps.
+func (r *TradeOrderRepository) CompleteByAppointment(ctx context.Context, id uint, ts interface{}) error {
+	res := db(ctx, r.db).Model(&model.TradeOrder{}).
+		Where("id = ? AND status IN ?", id, []string{"pending", "confirmed"}).
+		Updates(map[string]interface{}{
+			"status":              "completed",
+			"completed_at":        ts,
+			"buyer_confirmed_at":  gorm.Expr("COALESCE(buyer_confirmed_at, ?)", ts),
+			"seller_confirmed_at": gorm.Expr("COALESCE(seller_confirmed_at, ?)", ts),
+		})
 	if res.Error != nil {
 		return res.Error
 	}

@@ -45,6 +45,20 @@ export interface Message {
   created_at: string
 }
 
+export interface MeetupAppointment {
+  id: number
+  order_id: number
+  proposer_id: number
+  counterpart_id: number
+  meet_at: string
+  location: string
+  status: string
+  buyer_confirmed_at: string | null
+  seller_confirmed_at: string | null
+  responded_at: string | null
+  created_at: string
+}
+
 export interface TradeOrder {
   id: number
   product_id: number
@@ -55,6 +69,7 @@ export interface TradeOrder {
   seller_confirmed_at: string | null
   completed_at: string | null
   created_at: string
+  appointment: MeetupAppointment | null
 }
 
 export interface Review {

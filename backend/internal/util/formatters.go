@@ -32,6 +32,11 @@ func TradeStatusText(s string) string {
 	return constants.TradeStatusText(s)
 }
 
+// AppointmentStatusText maps a meetup appointment status to its Chinese label.
+func AppointmentStatusText(s string) string {
+	return constants.AppointmentStatusText(s)
+}
+
 // RoleText maps a user role to its Chinese label.
 func RoleText(role string) string {
 	return constants.UserRoleText(role)
